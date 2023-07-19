@@ -1,0 +1,17 @@
+[package]
+name = "bybit_account_updater"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chrono = "0.4.26"
+tungstenite = { version = "0.19.0", features = ["rustls-tls-native-roots"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ring = "0.16.20"
+hex = "0.4.3"
+lazy_static = "1.4.0"
+async-lock = "2.7.0"
+dotenv = "0.15.0"
