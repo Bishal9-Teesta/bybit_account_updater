@@ -78,7 +78,7 @@ pub fn private() {
     // let mut socket = sync::Arc::new(socket_stream);
 
     // This thread will only perform ping
-    thread::spawn({
+    let ping_thread = thread::spawn({
         let mut socket = sync::RwLock::new(socket_for_ping);
         move || unsafe {
             loop {
@@ -98,7 +98,7 @@ pub fn private() {
     });
 
     // This thread will handle all socket related performance
-    thread::spawn({
+    let socket_handler_thread = thread::spawn({
         let mut socket = sync::RwLock::new(socket_for_data);
         move || unsafe {
             loop {
@@ -114,4 +114,7 @@ pub fn private() {
             }
         }
     });
+
+    ping_thread.join().unwrap();
+    socket_handler_thread.join().unwrap();
 }
