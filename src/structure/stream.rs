@@ -10,7 +10,7 @@ pub enum Operation {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum Topic {
     position,
     execution,
@@ -156,12 +156,29 @@ pub struct Ping {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Pong {
+    pub req_id: String,
+    pub op: Operation,
+    pub args: Vec<String>,
+    pub conn_id: String
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SuccessResponse {
     pub req_id: String,
     pub success: bool,
     pub ret_msg: String,
     pub op: Operation,
-    pub conn_id: String,
+    pub conn_id: String
+}
+
+#[allow(non_snake_case)]
+#[derive(Debug, Deserialize)]
+pub struct SuccessSocketData<T> {
+    pub id: String,
+    pub topic: Topic,
+    pub creationTime: u64,
+    pub data: Vec<T>
 }
 
 #[allow(non_snake_case)]

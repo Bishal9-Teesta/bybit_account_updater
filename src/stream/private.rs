@@ -3,10 +3,11 @@ use ring::hmac;
 use std::fs::read;
 use std::io::{self, Read};
 use std::{sync, thread};
+// use std::ops::Deref;
 
 use crate::structure::stream::{
-    ExecutionChannel, Operation, OrderChannel, Ping, PositionChannel, Request, SuccessResponse,
-    Topic, WalletChannel,
+    ExecutionChannel, Operation, OrderChannel, Ping, Pong, PositionChannel, Request,
+    SuccessResponse, SuccessSocketData, Topic, WalletChannel,
 };
 
 pub fn private() {
@@ -73,48 +74,106 @@ pub fn private() {
             .unwrap();
     }
 
-    let mut socket_for_ping = sync::Arc::new(socket_stream);
-    let mut socket_for_data = socket_for_ping.clone();
-    // let mut socket = sync::Arc::new(socket_stream);
+    let mut socket_for_ping = sync::Arc::new(sync::RwLock::new(socket_stream));
+    let socket_for_data = socket_for_ping.clone();
+    // let mut socket = sync::Arc::new(sync::RwLock::new(socket_stream));
 
     // This thread will only perform ping
-    let ping_thread = thread::spawn({
-        let mut socket = sync::RwLock::new(socket_for_ping);
-        move || unsafe {
-            loop {
-                println!("Socket Can Write: {}", socket.read().unwrap().can_write())
-                // if socket.can_write() {
-                // socket
-                //     .write_message(tungstenite::Message::Text(
-                //         r#"{ "req_id": "Rust_Subscribe", "op": "ping" }"#.to_string(),
-                //     ))
-                //     .expect(&*format!(
-                //         "Error in sending ping request at {}.",
-                //         chrono::Local::now().format("%A, %d %B, %Y - %H:%M:%S")
-                //     ));
-                // }
-            }
-        }
-    });
+    // let ping_thread = thread::spawn({
+    //     // let mut socket = sync::Arc::new(socket_for_ping);
+    //     move || {
+    //         loop {
+    //             thread::sleep(std::time::Duration::from_secs(15));
+    //             // println!("Socket Can Write: {}", socket_for_ping.write().unwrap().can_write());
+    //             if socket_for_ping.write().unwrap().can_write() {
+    //                 socket_for_ping
+    //                     .write()
+    //                     .unwrap()
+    //                     .write_message(tungstenite::Message::Text(
+    //                         r#"{ "req_id": "Rust_Subscribe", "op": "ping" }"#.to_string(),
+    //                     ))
+    //                     .expect(&*format!(
+    //                         "Error in sending ping request at {}.",
+    //                         chrono::Local::now().format("%A, %d %B, %Y - %H:%M:%S")
+    //                     ));
+    //
+    //                 println!("Ping sent at {}", chrono::Local::now().format("%A, %d %B, %Y - %H:%M:%S"));
+    //             }
+    //         }
+    //     }
+    // });
 
     // This thread will handle all socket related performance
     let socket_handler_thread = thread::spawn({
-        let mut socket = sync::RwLock::new(socket_for_data);
-        move || unsafe {
+        // let mut socket = sync::Arc::new(socket_for_data);
+        move || {
             loop {
-                println!("Socket Can Read: {}", socket.read().unwrap().can_read());
-                // if socket_stream.can_read() {
-                //     let Ok(received) = socket_stream.read_message() else {
-                //              println!("Private function call");
-                //              private();
-                //              break;
-                //          };
-                //     println!("{:#?}", received);
-                // }
+                // println!("Socket Can Read: {}", socket.read().unwrap().can_read());
+                if socket_for_data.write().unwrap().can_read() {
+                    let Ok(received) = socket_for_data.write().unwrap().read_message() else {
+                             println!("Private function call");
+                             private();
+                             break;
+                         };
+                    println!("{:#?}", received);
+
+                    if received.is_binary() {
+                        println!("Socket Data is Binary!")
+                    }
+                    if received.is_ping() {
+                        println!("Socket Data is Ping!")
+                    }
+                    if received.is_pong() {
+                        println!("Socket Data is Pong!")
+                    }
+                    if received.is_close() {
+                        println!(
+                            "Socket Data is Closed at {}",
+                            chrono::Local::now().format("%A, %d %B, %Y - %H:%M:%S")
+                        );
+                        private();
+                    }
+
+                    if received.is_text() {
+                        // println!("Socket Data is Text!!");
+
+                        let raw_data = received.to_text().unwrap();
+                        if raw_data.contains("Rust_Auth") {
+                            let data: SuccessResponse = serde_json::from_str(raw_data).unwrap();
+                            println!("Successful Authentication Response: {:#?}", data);
+                        } else if raw_data.contains("Rust_Subscribe") && raw_data.contains("pong") {
+                            // if raw_data.contains("pong") {
+                            let data: Pong = serde_json::from_str(raw_data).unwrap();
+                            println!("Successful Pong Response: {:#?}", data);
+                            // }
+                        } else {
+
+                            if raw_data.contains("position") {
+                                let position_data: PositionChannel =
+                                    serde_json::from_str(raw_data.to_string().as_str()).unwrap();
+                                println!("Position Channel Data: {:#?}", position_data);
+                            } else if raw_data.contains("execution") {
+                                let execution_data: ExecutionChannel =
+                                    serde_json::from_str(raw_data.to_string().as_str()).unwrap();
+                                println!("Execution Channel Data: {:#?}", execution_data);
+                            } else if raw_data.contains("order") {
+                                let order_data: OrderChannel =
+                                    serde_json::from_str(raw_data.to_string().as_str()).unwrap();
+                                println!("Order Channel Data: {:#?}", order_data);
+                            } else if raw_data.contains("wallet") {
+                                let wallet_data: WalletChannel =
+                                    serde_json::from_str(raw_data.to_string().as_str()).unwrap();
+                                println!("Wallet Channel Data: {:#?}", wallet_data);
+                            } else {
+                                println!("Got None")
+                            }
+                        }
+                    }
+                }
             }
         }
     });
 
-    ping_thread.join().unwrap();
+    // ping_thread.join().unwrap();
     socket_handler_thread.join().unwrap();
 }
